@@ -1,0 +1,338 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Sproutsmith Route Lab</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;800&display=swap">
+<style>
+/* One column: key, then pick a route, fill its form, run; results stack newest first. */
+:root { --bg:#FFF9F2; --card:#FFFFFF; --ink:#2A1F1A; --muted:#6B5B50; --line:#D9C7B4; --forge:#C2410C; --on-forge:#FFFFFF; --glaze:#0F766E; --ok:#15803D; --bad:#B91C1C; --soft:#F6EBDD;
+  --display:"Fredoka","Trebuchet MS",system-ui,sans-serif; --text:"Nunito",system-ui,-apple-system,"Segoe UI",sans-serif; --mono:ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; }
+* { box-sizing:border-box; }
+body { margin:0; background:var(--bg); color:var(--ink); font:16px/1.5 var(--text); }
+main { max-width:860px; margin:0 auto; padding:20px 16px 80px; display:flex; flex-direction:column; gap:20px; }
+h1 { font:600 30px/1.1 var(--display); margin:8px 0 4px; text-wrap:balance; }
+h2 { font:600 20px/1.2 var(--display); margin:0 0 10px; }
+p { margin:0 0 8px; } .muted { color:var(--muted); font-size:14px; }
+section.card { background:var(--card); border:1px solid var(--line); border-radius:16px; padding:16px; }
+label { display:block; font-weight:600; font-size:14px; margin:12px 0 4px; }
+input[type=text],input[type=password],input[type=number],select,textarea { width:100%; font:inherit; color:inherit; background:var(--bg); border:1px solid #9C8674; border-radius:8px; padding:9px 10px; min-height:44px; }
+textarea { resize:vertical; } textarea.code { font:13px/1.4 var(--mono); }
+input[type=file] { width:100%; font:inherit; }
+:focus-visible { outline:3px solid var(--glaze); outline-offset:2px; }
+.row { display:flex; flex-wrap:wrap; gap:10px; align-items:center; } .row > * { min-width:0; }
+.grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:0 12px; }
+button { font:600 15px var(--text); min-height:44px; padding:0 16px; border-radius:8px; border:1px solid #9C8674; background:var(--card); color:var(--ink); cursor:pointer; }
+button.main { background:var(--forge); border-color:var(--forge); color:var(--on-forge); }
+button:disabled { opacity:.5; cursor:default; }
+.pill { display:inline-block; font-size:13px; font-weight:600; padding:2px 10px; border-radius:999px; background:var(--soft); }
+.pill.ok { background:#DCF3E3; color:var(--ok); } .pill.bad { background:#FBE3E3; color:var(--bad); } .pill.run { background:#FDEBD3; color:#8A3A06; }
+code { font:13px var(--mono); background:var(--soft); padding:1px 5px; border-radius:4px; overflow-wrap:anywhere; }
+.result { border-top:1px solid var(--line); padding-top:14px; margin-top:14px; } .result:first-child { border-top:0; padding-top:0; margin-top:0; }
+.media { display:grid; grid-template-columns:repeat(auto-fill,minmax(200px,1fr)); gap:10px; margin-top:10px; }
+.media img,.media video { width:100%; border-radius:8px; border:1px solid var(--line); background:repeating-conic-gradient(#eee 0 25%,#fff 0 50%) 0 0/18px 18px; display:block; }
+details { margin-top:8px; } summary { cursor:pointer; font-weight:600; font-size:14px; min-height:32px; }
+pre { margin:6px 0 0; padding:10px; background:var(--soft); border-radius:8px; font:12px/1.45 var(--mono); overflow-x:auto; max-height:320px; }
+.note { background:var(--soft); border-radius:8px; padding:10px 12px; font-size:14px; }
+footer { font-size:13px; color:var(--muted); }
+@media (prefers-reduced-motion:no-preference) { .pill.run { animation:pulse 1.6s ease-in-out infinite; } @keyframes pulse { 50% { opacity:.55; } } }
+</style>
+</head>
+<body>
+<main>
+  <header>
+    <h1>Sproutsmith Route Lab</h1>
+    <p class="muted">A private bench for trying fal routes side by side. Every run is a real call on your fal account and spends your fal balance.</p>
+  </header>
+
+  <section class="card" aria-labelledby="hKey">
+    <h2 id="hKey">1. Your fal key</h2>
+    <label for="key">fal API key</label>
+    <div class="row"><input id="key" type="password" autocomplete="off" spellcheck="false" placeholder="paste your key" style="flex:1 1 240px"><button type="button" id="keySave">Save on this device</button><button type="button" id="keyForget">Forget</button></div>
+    <p class="muted" id="keyState" aria-live="polite" style="margin-top:8px"></p>
+    <p class="muted">The key is kept in this browser only and is sent only to fal. Use a key made just for testing, and delete it at fal when you are done. Do not use this page on a shared computer.</p>
+  </section>
+
+  <section class="card" aria-labelledby="hRoute">
+    <h2 id="hRoute">2. Pick a route</h2>
+    <div class="grid">
+      <div><label for="group">Kind</label><select id="group"></select></div>
+      <div><label for="route">Route</label><select id="route"></select></div>
+    </div>
+    <p class="muted" style="margin-top:8px">Endpoint: <code id="endpoint"></code> <span id="routeNote"></span></p>
+    <div id="form"></div>
+    <details><summary>The exact request (edit to try other settings)</summary>
+      <p class="muted">This is what gets sent. Files you picked above are uploaded first and their links filled in where it says <code>(your file)</code>.</p>
+      <textarea id="body" class="code" rows="8" spellcheck="false" aria-label="Request body as JSON"></textarea>
+    </details>
+    <div class="row" style="margin-top:14px">
+      <button type="button" class="main" id="run">Run this route</button>
+      <button type="button" id="runAll"></button>
+      <span class="muted" id="runMsg" aria-live="polite"></span>
+    </div>
+  </section>
+
+  <section class="card" aria-labelledby="hRes">
+    <div class="row" style="justify-content:space-between"><h2 id="hRes" style="margin:0">3. Results</h2><button type="button" id="clear">Clear list</button></div>
+    <div id="results" style="margin-top:12px"><p class="muted" id="empty">Nothing run yet. Results show here, newest first, with the time each route took.</p></div>
+  </section>
+
+  <footer>
+    <p>Routes and settings were read from fal's own client library (version 1.11.0, November 2026). fal adds and retires routes often; if one fails with "not found", check its page on fal. Prices are not shown because they could not be confirmed; check each route's page before a big batch.</p>
+    <p>Output links are hosted by fal and may expire. Save anything you want to keep.</p>
+  </footer>
+</main>
+
+<script>
+/* ---------- the routes ---------- */
+var SIZES = ['square_hd', 'square', 'portrait_4_3', 'portrait_16_9', 'landscape_4_3', 'landscape_16_9'];
+var F = {
+  prompt: function (ph) { return { k: 'prompt', t: 'text', label: 'Prompt', ph: ph || '' }; },
+  size: function (d) { return { k: 'image_size', t: 'select', label: 'Size', opts: SIZES, d: d || 'square_hd' }; },
+  count: { k: 'num_images', t: 'number', label: 'How many', d: 1, min: 1, max: 4 },
+  seed: { k: 'seed', t: 'number', label: 'Seed (blank = random)' },
+  image: function (k, label) { return { k: k || 'image_url', t: 'image', label: label || 'Image' }; },
+  images: { k: 'image_urls', t: 'images', label: 'Reference image(s)' },
+  video: { k: 'video_url', t: 'video', label: 'Video' },
+  res: function (opts, d) { return { k: 'resolution', t: 'select', label: 'Resolution', opts: opts, d: d }; },
+  sel: function (k, label, opts, d) { return { k: k, t: 'select', label: label, opts: opts, d: d }; },
+  num: function (k, label, d, min, max, step) { return { k: k, t: 'number', label: label, d: d, min: min, max: max, step: step }; }
+};
+var P_IMG = 'Pixel-art knight with a round shield, full body, facing right, plain background, 16-bit style';
+var P_EDIT = 'Keep the character exactly the same; change the outfit to green forest ranger gear';
+var P_VID = 'The knight breathes and shifts weight, cape moving gently, locked-off camera';
+var ROUTES = [
+  { g: 'Text to picture', id: 'fal-ai/z-image/turbo', name: 'Z-Image Turbo (fast)', f: [F.prompt(P_IMG), F.size(), F.count, F.seed] },
+  { g: 'Text to picture', id: 'fal-ai/flux-2/klein/4b', name: 'FLUX.2 klein 4B (fast)', f: [F.prompt(P_IMG), F.size(), F.count, F.seed] },
+  { g: 'Text to picture', id: 'fal-ai/flux-2', name: 'FLUX.2 dev', f: [F.prompt(P_IMG), F.size(), F.count, F.seed] },
+  { g: 'Text to picture', id: 'fal-ai/flux-2-pro', name: 'FLUX.2 pro (quality)', f: [F.prompt(P_IMG), F.size(), F.seed] },
+  { g: 'Text to picture', id: 'blackforestlabs/flux-3/klein/text-to-image', name: 'FLUX.3 klein (newest)', f: [F.prompt(P_IMG), F.size(), F.count, F.seed] },
+
+  { g: 'Picture + words to picture', id: 'fal-ai/flux-2/klein/4b/edit', name: 'FLUX.2 klein 4B edit (fast)', f: [F.images, F.prompt(P_EDIT), F.count, F.seed] },
+  { g: 'Picture + words to picture', id: 'fal-ai/flux-kontext/dev', name: 'FLUX Kontext dev', f: [F.image(), F.prompt(P_EDIT), F.count, F.seed] },
+  { g: 'Picture + words to picture', id: 'fal-ai/flux-pro/kontext', name: 'FLUX Kontext pro (quality)', f: [F.image(), F.prompt(P_EDIT), F.seed] },
+  { g: 'Picture + words to picture', id: 'fal-ai/z-image/turbo/image-to-image', name: 'Z-Image Turbo, redraw with strength', f: [F.image(), F.prompt(P_IMG), F.num('strength', 'Strength (0 keeps it, 1 redraws it)', 0.6, 0, 1, 0.05), F.count, F.seed] },
+
+  { g: 'Picture to video', id: 'fal-ai/wan/v2.2-a14b/image-to-video/turbo', name: 'Wan 2.2 14B turbo (fast)', f: [F.image(), F.prompt(P_VID), F.res(['480p', '580p', '720p'], '480p'), F.seed] },
+  { g: 'Picture to video', id: 'fal-ai/wan/v2.2-5b/image-to-video', name: 'Wan 2.2 5B', f: [F.image(), F.prompt(P_VID), F.res(['580p', '720p'], '580p'), F.seed] },
+  { g: 'Picture to video', id: 'alibaba/wan-3.0/image-to-video', name: 'Wan 3.0 (newest, priced per second)', f: [F.image('start_image_url', 'Start picture'), F.prompt(P_VID), F.res(['480p', '720p', '1080p'], '480p'), F.num('duration', 'Seconds', 5, 2, 10, 1), F.seed] },
+
+  { g: 'Text to video', id: 'fal-ai/wan/v2.2-a14b/text-to-video/turbo', name: 'Wan 2.2 14B turbo (fast)', f: [F.prompt('Campfire flickering in a forest clearing, sparks drifting up, slow push-in'), F.res(['480p', '580p', '720p'], '480p'), F.seed] },
+  { g: 'Text to video', id: 'fal-ai/wan/v2.2-5b/text-to-video', name: 'Wan 2.2 5B', f: [F.prompt('Campfire flickering in a forest clearing, sparks drifting up, slow push-in'), F.res(['580p', '720p'], '580p'), F.seed] },
+  { g: 'Text to video', id: 'alibaba/wan-3.0/text-to-video', name: 'Wan 3.0 (newest, priced per second)', f: [F.prompt('Campfire flickering in a forest clearing, sparks drifting up, slow push-in'), F.res(['480p', '720p', '1080p'], '480p'), F.num('duration', 'Seconds', 5, 2, 10, 1), F.seed] },
+
+  { g: 'Video to video', id: 'fal-ai/wan/v2.2-a14b/video-to-video', name: 'Wan 2.2 restyle', f: [F.video, F.prompt('Same motion, redrawn as hand-painted storybook art'), F.num('strength', 'Strength', 0.7, 0, 1, 0.05), F.res(['480p', '580p', '720p'], '480p'), F.seed] },
+  { g: 'Video to video', id: 'fal-ai/wan/v2.7/edit-video', name: 'Wan 2.7 edit by instruction', f: [F.video, F.prompt('Change the time of day to sunset'), F.res(['720p', '1080p'], '720p'), F.seed] },
+  { g: 'Video to video', id: 'fal-ai/ltx-2.3/extend-video', name: 'LTX 2.3 extend', f: [F.video, F.prompt('The scene continues as the camera slowly pulls back'), F.num('duration', 'Seconds to add', 5, 2, 20, 1), F.sel('mode', 'Add to the', ['end', 'start'], 'end')] },
+
+  { g: 'Upscale a picture', id: 'fal-ai/esrgan', name: 'ESRGAN (fast)', f: [F.image(), F.num('scale', 'Scale', 2, 1, 8, 1), F.sel('model', 'Model', ['RealESRGAN_x4plus', 'RealESRGAN_x2plus', 'RealESRGAN_x4plus_anime_6B', 'RealESRGAN_x4_v3', 'RealESRGAN_x4_anime_v3'], 'RealESRGAN_x4plus')] },
+  { g: 'Upscale a picture', id: 'fal-ai/seedvr/upscale/image', name: 'SeedVR (quality)', f: [F.image(), F.num('upscale_factor', 'Factor', 2, 1, 4, 0.5)] },
+
+  { g: 'Remove the background', id: 'fal-ai/birefnet/v2', name: 'BiRefNet v2', f: [F.image(), F.sel('model', 'Model', ['General Use (Light)', 'General Use (Light 2K)', 'General Use (Heavy)', 'Matting', 'Portrait', 'General Use (Dynamic)'], 'General Use (Light)')] },
+  { g: 'Remove the background', id: 'fal-ai/bria/background/remove', name: 'Bria (licensed data)', f: [F.image()] },
+
+  { g: 'Game asset helpers', id: 'fal-ai/image2pixel', name: 'Picture to clean pixel art', f: [F.image(), F.num('max_colors', 'Most colours', 32, 2, 256, 1), F.sel('transparent_background', 'Transparent background', ['true', 'false'], 'true')] },
+  { g: 'Game asset helpers', id: 'fal-ai/ideogram/v3/generate-transparent', name: 'Text to picture on a transparent background', f: [F.prompt('Game icon of a glowing blue potion bottle, thick outline'), F.sel('rendering_speed', 'Speed', ['TURBO', 'BALANCED', 'QUALITY'], 'TURBO'), F.count, F.seed] },
+  { g: 'Game asset helpers', id: 'fal-ai/qwen-image-edit-2511-multiple-angles', name: 'Other angles of the same thing', f: [F.images, F.num('horizontal_angle', 'Turn (0 to 360)', 90, 0, 360, 15), F.num('vertical_angle', 'Tilt (-30 to 90)', 0, -30, 90, 5), F.count, F.seed] },
+  { g: 'Game asset helpers', id: 'fal-ai/z-image/turbo/tiling', name: 'Seamless tile', f: [F.prompt('Mossy cobblestone ground, top-down, hand-painted'), F.sel('tiling_mode', 'Tiles', ['both', 'horizontal', 'vertical'], 'both'), F.size(), F.seed] },
+  { g: 'Game asset helpers', id: 'fal-ai/qwen-image-layered', name: 'Split a picture into layers', f: [F.image(), F.num('num_layers', 'Layers', 4, 2, 8, 1)] },
+
+  { g: 'Any other route', id: '', name: 'Type the endpoint yourself', custom: true, f: [] }
+];
+
+/* ---------- small helpers ---------- */
+var $ = function (id) { return document.getElementById(id); };
+function el(tag, attrs, kids) { var e = document.createElement(tag); Object.keys(attrs || {}).forEach(function (k) { if (k === 'text') e.textContent = attrs[k]; else if (k === 'cls') e.className = attrs[k]; else e.setAttribute(k, attrs[k]); }); (kids || []).forEach(function (c) { e.appendChild(c); }); return e; }
+function store(k, v) { try { if (v === undefined) return localStorage.getItem(k); if (v === null) localStorage.removeItem(k); else localStorage.setItem(k, v); } catch (e) { return null; } }
+function key() { return ($('key').value || '').trim(); }
+var FILE_MARK = '(your file)';
+var current = null, files = {}, lastGroup = null;
+
+/* ---------- key ---------- */
+function keyState(msg) { $('keyState').textContent = msg; }
+$('keySave').onclick = function () { if (!key()) return keyState('Paste a key first.'); store('fal_key', key()); keyState('Saved in this browser.'); };
+$('keyForget').onclick = function () { store('fal_key', null); $('key').value = ''; keyState('Forgotten. Nothing is stored now.'); };
+
+/* ---------- form ---------- */
+function groups() { return ROUTES.map(function (r) { return r.g; }).filter(function (g, i, a) { return a.indexOf(g) === i; }); }
+function inGroup(g) { return ROUTES.filter(function (r) { return r.g === g; }); }
+function fillGroup() { groups().forEach(function (g) { $('group').appendChild(el('option', { text: g })); }); }
+function fillRoutes() {
+  $('route').textContent = '';
+  inGroup($('group').value).forEach(function (r) { $('route').appendChild(el('option', { value: r.id, text: r.name })); });
+  pickRoute();
+}
+function pickRoute() {
+  var list = inGroup($('group').value); current = list.filter(function (r) { return r.id === $('route').value; })[0] || list[0];
+  var keep = current.g === lastGroup ? readShared() : {}; lastGroup = current.g; files = {}; // words carry over within a kind, not across kinds
+  $('endpoint').textContent = current.custom ? '(type it below)' : current.id;
+  var form = $('form'); form.textContent = '';
+  if (current.custom) {
+    form.appendChild(el('label', { for: 'f_endpoint', text: 'Endpoint id, as shown on its fal page' }));
+    form.appendChild(el('input', { id: 'f_endpoint', type: 'text', placeholder: 'fal-ai/some-model/variant', spellcheck: 'false' }));
+    form.appendChild(el('label', { for: 'f_file', text: 'A file to upload first (optional)' }));
+    form.appendChild(fileInput('f_file', 'image/*,video/*', '__file'));
+    form.appendChild(el('p', { cls: 'muted', text: 'Write the request below. Put "(your file)" wherever the uploaded file’s link should go.' }));
+    $('body').value = '{\n  "prompt": ""\n}';
+    document.querySelector('details').open = true;
+  } else {
+    var grid = el('div', { cls: 'grid' });
+    current.f.forEach(function (f) {
+      var id = 'f_' + f.k, wrap = el('div', {}, [el('label', { for: id, text: f.label })]), inp;
+      if (f.t === 'text') { inp = el('textarea', { id: id, rows: '3', placeholder: f.ph }); inp.value = keep.prompt || f.ph; wrap.style.gridColumn = '1 / -1'; }
+      else if (f.t === 'select') { inp = el('select', { id: id }); f.opts.forEach(function (o) { inp.appendChild(el('option', { text: o })); }); inp.value = f.d; }
+      else if (f.t === 'number') { inp = el('input', { id: id, type: 'number' }); ['min', 'max', 'step'].forEach(function (a) { if (f[a] != null) inp.setAttribute(a, f[a]); }); if (f.d != null) inp.value = f.d; }
+      else { inp = fileInput(id, f.t === 'video' ? 'video/*' : 'image/*', f.k, f.t === 'images'); wrap.style.gridColumn = '1 / -1'; }
+      inp.addEventListener('input', syncBody); wrap.appendChild(inp); grid.appendChild(wrap);
+    });
+    form.appendChild(grid);
+    syncBody();
+  }
+  var n = inGroup($('group').value).filter(function (r) { return !r.custom; }).length;
+  $('runAll').hidden = current.custom || n < 2; $('runAll').textContent = 'Run all ' + n + ' in this kind'; $('runAll').dataset.armed = '';
+  $('runMsg').textContent = '';
+}
+function fileInput(id, accept, k, multi) {
+  var inp = el('input', { id: id, type: 'file', accept: accept }); if (multi) inp.multiple = true;
+  inp.addEventListener('change', function () { files[k] = [].slice.call(inp.files); syncBody(); });
+  return inp;
+}
+function readShared() { var p = $('f_prompt'); return { prompt: p ? p.value : '' }; }
+function buildBody(route) {
+  var b = {};
+  route.f.forEach(function (f) {
+    var inp = $('f_' + f.k);
+    if (f.t === 'image' || f.t === 'video') { if ((files[f.k] || []).length) b[f.k] = FILE_MARK; }
+    else if (f.t === 'images') { if ((files[f.k] || []).length) b[f.k] = files[f.k].map(function () { return FILE_MARK; }); }
+    else if (!inp) { if (f.d != null) b[f.k] = f.d; }
+    else if (f.t === 'number') { if (inp.value !== '') b[f.k] = +inp.value; }
+    else if (inp.value !== '') b[f.k] = inp.value === 'true' ? true : inp.value === 'false' ? false : inp.value;
+  });
+  return b;
+}
+function syncBody() { if (current && !current.custom) $('body').value = JSON.stringify(buildBody(current), null, 2); }
+
+/* ---------- talking to fal ---------- */
+function falFetch(url, opts) {
+  opts = opts || {}; opts.headers = Object.assign({ Authorization: 'Key ' + key(), Accept: 'application/json' }, opts.headers || {});
+  return fetch(url, opts).then(function (res) {
+    return res.text().then(function (t) {
+      var j = null; try { j = t ? JSON.parse(t) : null; } catch (e) { /* not JSON */ }
+      if (!res.ok) { var d = j && j.detail; throw new Error(res.status + ': ' + (typeof d === 'string' ? d : d ? JSON.stringify(d) : t.slice(0, 300) || res.statusText)); }
+      return j;
+    });
+  });
+}
+function asDataUrl(file) { return new Promise(function (ok, no) { var r = new FileReader(); r.onload = function () { ok(r.result); }; r.onerror = no; r.readAsDataURL(file); }); }
+// Upload to fal storage and get a link; a small picture falls back to being sent inline if the upload is refused.
+function upload(file) {
+  return falFetch('https://rest.fal.ai/storage/upload/initiate?storage_type=fal-cdn-v3', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ content_type: file.type || 'application/octet-stream', file_name: file.name }) })
+    .then(function (j) { return fetch(j.upload_url, { method: 'PUT', headers: { 'Content-Type': file.type || 'application/octet-stream' }, body: file }).then(function (r) { if (!r.ok) throw new Error('upload ' + r.status); return j.file_url; }); })
+    .catch(function (e) { if (/^\d{3}: /.test(e.message) && /^40[13]/.test(e.message)) throw e; if (file.type.indexOf('image/') === 0 && file.size < 4e6) return asDataUrl(file); throw new Error('Could not upload ' + file.name + ' (' + e.message + ')'); });
+}
+// Replace each "(your file)" in the request, in order, with an uploaded link.
+function fillFiles(body, list) {
+  var i = 0, walk = function (v) {
+    if (v === FILE_MARK) { var u = list[i++]; if (!u) throw new Error('The request asks for a file that was not picked.'); return u; }
+    if (Array.isArray(v)) return v.map(walk);
+    if (v && typeof v === 'object') { var o = {}; Object.keys(v).forEach(function (k) { o[k] = walk(v[k]); }); return o; }
+    return v;
+  };
+  return walk(body);
+}
+function wait(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function findMedia(v, out) {
+  out = out || [];
+  if (Array.isArray(v)) v.forEach(function (x) { findMedia(x, out); });
+  else if (v && typeof v === 'object') {
+    if (typeof v.url === 'string' && /^(https:|data:)/.test(v.url)) { var ct = v.content_type || ''; out.push({ url: v.url, video: ct.indexOf('video') === 0 || /\.(mp4|webm|mov)(\?|$)/i.test(v.url) }); }
+    Object.keys(v).forEach(function (k) { if (k !== 'url') findMedia(v[k], out); });
+  }
+  return out;
+}
+
+/* ---------- running ---------- */
+function runRoute(route, endpoint, body, fileList) {
+  var card = el('div', { cls: 'result' }), pill = el('span', { cls: 'pill run', text: 'Starting' }), info = el('span', { cls: 'muted' });
+  var stop = el('button', { type: 'button', text: 'Cancel' }), media = el('div', { cls: 'media' }), extra = el('div');
+  card.appendChild(el('div', { cls: 'row' }, [el('strong', { text: route.custom ? endpoint : route.name }), pill, info, stop]));
+  card.appendChild(el('p', { cls: 'muted' }, [el('code', { text: endpoint })]));
+  card.appendChild(media); card.appendChild(extra);
+  var e0 = $('empty'); if (e0) e0.remove();
+  $('results').insertBefore(card, $('results').firstChild);
+  var t0 = Date.now(), cancelled = false, urls = null, secs = function () { return ((Date.now() - t0) / 1000).toFixed(1) + ' s'; };
+  var set = function (cls, text) { pill.className = 'pill ' + cls; pill.textContent = text; };
+  stop.onclick = function () { cancelled = true; stop.disabled = true; if (urls && urls.cancel_url) falFetch(urls.cancel_url, { method: 'PUT' }).catch(function () {}); };
+  var sent;
+  return Promise.all(fileList.map(function (f) { set('run', 'Uploading'); return upload(f); }))
+    .then(function (links) { sent = fillFiles(body, links); set('run', 'Sending'); return falFetch('https://queue.fal.run/' + endpoint, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(sent) }); })
+    .then(function (q) {
+      urls = q; var delay = 800;
+      var poll = function () {
+        if (cancelled) throw new Error('Cancelled');
+        return falFetch(q.status_url + (q.status_url.indexOf('?') < 0 ? '?' : '&') + 'logs=0').then(function (s) {
+          if (s.status === 'COMPLETED') return falFetch(q.response_url);
+          set('run', s.status === 'IN_QUEUE' ? 'In line' + (s.queue_position != null ? ', position ' + s.queue_position : '') : 'Working');
+          info.textContent = secs(); delay = Math.min(delay * 1.3, 5000);
+          return wait(delay).then(poll);
+        });
+      };
+      return poll();
+    })
+    .then(function (out) {
+      set('ok', 'Done'); info.textContent = secs() + (urls.request_id ? ' · request ' + urls.request_id : ''); stop.remove();
+      var found = findMedia(out);
+      found.forEach(function (m) {
+        var node = m.video ? el('video', { src: m.url, controls: '', loop: '', muted: '', playsinline: '' }) : el('img', { src: m.url, alt: 'Result from ' + (route.name || endpoint), loading: 'lazy' });
+        media.appendChild(el('div', {}, [node, el('a', { href: m.url, target: '_blank', rel: 'noopener', cls: 'muted', text: 'Open full size' })]));
+      });
+      if (!found.length) extra.appendChild(el('p', { cls: 'muted', text: 'The route answered but returned no picture or video link. See the reply below.' }));
+      extra.appendChild(detail('What was sent', sent)); extra.appendChild(detail('Full reply', out));
+    })
+    .catch(function (e) {
+      stop.remove(); info.textContent = secs();
+      if (cancelled) return set('', 'Cancelled');
+      set('bad', 'Failed');
+      var msg = e.message, hint = /^401|^403/.test(msg) ? ' Check the key.' : /^404/.test(msg) ? ' fal may have renamed or retired this route.' : /^422/.test(msg) ? ' fal did not accept one of the settings; edit the request and try again.' : /Failed to fetch|NetworkError/i.test(msg) ? ' The browser could not reach fal. Check your connection.' : '';
+      extra.appendChild(el('p', { text: msg + hint })); if (sent) extra.appendChild(detail('What was sent', sent));
+    });
+}
+function detail(title, obj) { var s = JSON.stringify(obj, function (k, v) { return typeof v === 'string' && v.length > 300 ? v.slice(0, 120) + '… (' + v.length + ' characters)' : v; }, 2); return el('details', {}, [el('summary', { text: title }), el('pre', { text: s })]); }
+function orderedFiles(route) { var out = []; if (route.custom) return (files.__file || []).slice(); route.f.forEach(function (f) { if (f.t === 'image' || f.t === 'video' || f.t === 'images') out = out.concat(files[f.k] || []); }); return out; }
+function ready() { if (!key()) { $('runMsg').textContent = 'Add your fal key first.'; $('key').focus(); return false; } return true; }
+$('run').onclick = function () {
+  if (!ready()) return;
+  var body; try { body = JSON.parse($('body').value || '{}'); } catch (e) { $('runMsg').textContent = 'The request is not valid JSON: ' + e.message; return; }
+  var endpoint = current.custom ? ($('f_endpoint').value || '').trim().replace(/^https?:\/\/[^/]+\//, '') : current.id;
+  if (!endpoint) { $('runMsg').textContent = 'Type the endpoint id first.'; return; }
+  $('runMsg').textContent = ''; runRoute(current, endpoint, body, orderedFiles(current));
+};
+// Same words and the same files across every route of this kind; each keeps its own other settings.
+$('runAll').onclick = function () {
+  if (!ready()) return;
+  var b = $('runAll'), list = inGroup($('group').value).filter(function (r) { return !r.custom; });
+  if (!b.dataset.armed) { b.dataset.armed = '1'; b.textContent = 'Tap again: ' + list.length + ' paid runs'; return; }
+  b.dataset.armed = ''; b.textContent = 'Run all ' + list.length + ' in this kind';
+  var shared = readShared(), pool = []; Object.keys(files).forEach(function (k) { pool = pool.concat(files[k] || []); });
+  list.forEach(function (r) {
+    var body = {}, fl = [];
+    r.f.forEach(function (f) {
+      if (f.t === 'text') body[f.k] = shared.prompt || f.ph;
+      else if (f.t === 'image' || f.t === 'video') { if (pool[0]) { body[f.k] = FILE_MARK; fl.push(pool[0]); } }
+      else if (f.t === 'images') { if (pool.length) { body[f.k] = pool.map(function () { return FILE_MARK; }); fl = fl.concat(pool); } }
+      else if (r === current && $('f_' + f.k) && $('f_' + f.k).value !== '') { var v = $('f_' + f.k).value; body[f.k] = f.t === 'number' ? +v : v === 'true' ? true : v === 'false' ? false : v; }
+      else if (f.d != null) body[f.k] = f.d === 'true' ? true : f.d === 'false' ? false : f.d;
+    });
+    runRoute(r, r.id, body, fl);
+  });
+};
+$('clear').onclick = function () { $('results').textContent = ''; $('results').appendChild(el('p', { cls: 'muted', id: 'empty', text: 'Cleared. Runs still in progress at fal are not cancelled by this.' })); };
+
+/* ---------- start ---------- */
+$('key').value = store('fal_key') || ''; keyState($('key').value ? 'A key is saved in this browser.' : 'No key saved.');
+fillGroup(); $('group').onchange = fillRoutes; $('route').onchange = pickRoute; fillRoutes();
+</script>
+</body>
+</html>
